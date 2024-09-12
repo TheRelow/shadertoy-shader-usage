@@ -7,7 +7,7 @@ const sizes = {
   height: window.innerHeight,
 };
 
-const canvas = document.querySelector("canvas.webglHH");
+const canvas = document.querySelector("canvas");
 
 const camera = new THREE.PerspectiveCamera(
   75,
