@@ -1,5 +1,7 @@
 // Reference - https://www.shadertoy.com/view/ldccW4
 
+let isPaused = false;
+
 const canvas = document.querySelector("canvas");
 const gl = canvas.getContext('webgl');
 
@@ -32,7 +34,7 @@ const fragmentShaderSource = `
     float offset = sin(fragCoord.x * 15.);
     float speed = cos(fragCoord.x * 3.) * 0.3 + 0.7;
     float y = fract(fragCoord.y / iResolution.y + iTime * speed + offset);
-    return vec3(0.1, 1.0, 0.35) / (y * 20.);
+    return vec3(0.000,0.373,1.00) / (y * 20.);
   }
 
   void main() {
@@ -145,6 +147,9 @@ const texture0 = loadTexture('letters.png');
 const texture1 = loadTexture('noise.png');
 
 function render(time) {
+  if (isPaused) {
+    return;
+  }
   time *= 0.001; // convert time to seconds
 
   resizeCanvasToDisplaySize(gl.canvas);
@@ -184,3 +189,12 @@ function render(time) {
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
+
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    isPaused = !isPaused;
+    if (!isPaused) {
+      requestAnimationFrame(render); // Запуск анимации снова при снятии паузы
+    }
+  }
+});
