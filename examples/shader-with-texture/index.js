@@ -1,85 +1,50 @@
-// Reference - https://www.shadertoy.com/view/ldccW4
+import { createShader, createProgram, vertexShaderSource } from "../../baseCode/shaders.js";
 
-let isPaused = false;
+// Reference - https://www.shadertoy.com/view/ldccW4
 
 const canvas = document.querySelector("canvas");
 const gl = canvas.getContext('webgl');
 
-const vertexShaderSource = `
-  attribute vec4 aPosition;
-  void main() {
-    gl_Position = aPosition;
-  }
-`;
-
 const fragmentShaderSource = `
-  precision mediump float;
-  uniform vec2 iResolution;
-  uniform float iTime;
-  uniform sampler2D iChannel0;
-  uniform sampler2D iChannel1;
+precision mediump float;
+uniform vec2 iResolution;
+uniform float iTime;
+uniform vec2 iMouse;
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
+uniform float symbolSize;
 
-  float text(vec2 fragCoord) {
-    vec2 uv = mod(fragCoord.xy, 16.) * 0.0625;
-    vec2 block = fragCoord * 0.0625 - uv;
-    uv = uv * 0.8 + 0.1; // scale the letters up a bit
-    uv += floor(texture2D(iChannel1, block / iResolution.xy + iTime * 0.002).xy * 16.); // randomize letters
-    uv *= 0.0625; // bring back into 0-1 range
-    uv.x = -uv.x; // flip letters horizontally
-    return texture2D(iChannel0, uv).r;
-  }
+float rand(float seed) {
+  return step(0.5, fract(sin(seed * 12.9898) * 43758.5453));
+}
 
-  vec3 rain(vec2 fragCoord) {
-    fragCoord.x -= mod(fragCoord.x, 16.);
-    float offset = sin(fragCoord.x * 15.);
-    float speed = cos(fragCoord.x * 3.) * 0.3 + 0.7;
-    float y = fract(fragCoord.y / iResolution.y + iTime * speed + offset);
-    return vec3(0.000,0.373,1.00) / (y * 20.);
-  }
+float text(vec2 fragCoord) {
+  vec2 uv = mod(fragCoord, symbolSize) / symbolSize;
+  vec2 block = fragCoord / symbolSize - uv; // px
+  uv /= 16.0;
 
-  void main() {
-    vec2 fragCoord = gl_FragCoord.xy;
-    vec2 uv = mod(fragCoord, 16.0) * 0.0625;
-    vec2 block = fragCoord * 0.0625 - uv;
-    uv = uv * 0.8 + 0.1;
-    uv += floor(texture2D(iChannel1, block / iResolution.xy + iTime * 0.002).xy * 16.0);
-    uv *= 0.0625;
+  uv.x += rand(floor(iTime + block.x * 1238.0 / (block.y + 1.0) * 123.0)) / 16.0;
+  uv.y = 4.0 / 16.0 - uv.y;
 
-    // Инвертируем координаты
-    uv.x = 1.0 - uv.x;
+  return texture2D(iChannel0, uv).r;
+}
 
-    // Комбинируем результат текстуры и \`rain\`
-    vec3 rainColor = rain(fragCoord);
-    float textColor = texture2D(iChannel0, uv).r;
+vec3 rain(vec2 fragCoord) {
+  fragCoord.x -= mod(fragCoord.x, symbolSize);
+  float offset = sin(fragCoord.x * 15.0);
+  float speed = cos(fragCoord.x * 3.0) * 0.15 + 0.3;
+  float y = fract(fragCoord.y / iResolution.y + iTime * speed + offset);
 
-    gl_FragColor = vec4(textColor * rainColor, 1.0);
+  float intensity = smoothstep(250.0, 0.0, length(fragCoord.xy - iMouse.xy)) * 6.0 + 1.0;
+
+  return vec3(0.0, 0.373, 1.0) / (y * 20.0) * intensity;
+}
+
+void main() {
+  vec2 fragCoord = gl_FragCoord.xy;
+  gl_FragColor = vec4(text(fragCoord) * rain(fragCoord), 1.0);
 }
 `;
-
-function createShader(gl, type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(shader));
-    gl.deleteShader(shader);
-    return null;
-  }
-  return shader;
-}
-
-function createProgram(gl, vertexShader, fragmentShader) {
-  const program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error(gl.getProgramInfoLog(program));
-    gl.deleteProgram(program);
-    return null;
-  }
-  return program;
-}
 
 const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
 const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -88,8 +53,10 @@ const program = createProgram(gl, vertexShader, fragmentShader);
 const positionAttributeLocation = gl.getAttribLocation(program, 'aPosition');
 const resolutionUniformLocation = gl.getUniformLocation(program, 'iResolution');
 const timeUniformLocation = gl.getUniformLocation(program, 'iTime');
+const mouseUniformLocation = gl.getUniformLocation(program, 'iMouse');
 const texture0Location = gl.getUniformLocation(program, 'iChannel0');
 const texture1Location = gl.getUniformLocation(program, 'iChannel1');
+const symbolSizeLocation = gl.getUniformLocation(program, 'symbolSize'); // Новое uniform'ы для размера символов
 
 const positionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -146,11 +113,24 @@ function loadTexture(url) {
 const texture0 = loadTexture('letters.png');
 const texture1 = loadTexture('noise.png');
 
+let isPaused = false;
+let lastRenderTime = 0;
+let pausedTime = 0;
+let mouseX = -1000; // Инициализируем координаты мыши вне экрана
+let mouseY = -1000;
+const symbolSize = 22.0; // Начальный размер символов
+
+/**
+ * Функция render - отвечает за отрисовку каждого кадра.
+ * @param {number} time - Текущее время в миллисекундах.
+ */
 function render(time) {
-  if (isPaused) {
-    return;
+  if (!isPaused) {
+    const deltaTime = time - lastRenderTime;
+    pausedTime += deltaTime * 0.001; // Накопленное время в секундах
   }
-  time *= 0.001; // convert time to seconds
+
+  lastRenderTime = time;
 
   resizeCanvasToDisplaySize(gl.canvas);
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -163,15 +143,18 @@ function render(time) {
   gl.enableVertexAttribArray(positionAttributeLocation);
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
-  const size = 2;          // 2 components per iteration
-  const type = gl.FLOAT;   // the data is 32bit floats
-  const normalize = false; // don't normalize the data
-  const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-  const offset = 0;        // start at the beginning of the buffer
+  const size = 2;
+  const type = gl.FLOAT;
+  const normalize = false;
+  const stride = 0;
+  const offset = 0;
   gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
 
+  // Обновляем uniform'ы шейдера
   gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-  gl.uniform1f(timeUniformLocation, time);
+  gl.uniform1f(timeUniformLocation, pausedTime);
+  gl.uniform2f(mouseUniformLocation, mouseX, mouseY); // Передаем позицию мыши
+  gl.uniform1f(symbolSizeLocation, symbolSize); // Передаем размер символов
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture0);
@@ -188,13 +171,32 @@ function render(time) {
 
   requestAnimationFrame(render);
 }
+
+// Начинаем анимацию
 requestAnimationFrame(render);
+
+// Обновляем координаты мыши при движении
+canvas.addEventListener('mousemove', (event) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = event.clientX - rect.left;
+  mouseY = canvas.height - (event.clientY - rect.top);
+});
+
+// Когда мышь выходит за пределы канваса, задаем координаты за пределами экрана
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -1000;
+  mouseY = -1000;
+});
+
+// Когда мышь снова входит в канвас, восстанавливаем координаты мыши
+canvas.addEventListener('mouseenter', (event) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = event.clientX - rect.left;
+  mouseY = canvas.height - (event.clientY - rect.top);
+});
 
 window.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
     isPaused = !isPaused;
-    if (!isPaused) {
-      requestAnimationFrame(render); // Запуск анимации снова при снятии паузы
-    }
   }
 });
