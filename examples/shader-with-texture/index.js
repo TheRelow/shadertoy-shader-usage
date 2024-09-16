@@ -14,7 +14,7 @@ uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform float symbolSize;
 
-float rand(float seed) { 
+float rand(float seed) {
   return step(0.5, fract(sin(seed * 12.9898) * 43758.5453));
 }
 
@@ -44,6 +44,7 @@ vec3 rain(vec2 fragCoord) {
 void main() {
   vec2 fragCoord = gl_FragCoord.xy;
   gl_FragColor = vec4(text(fragCoord) * rain(fragCoord), 1.0);
+  //gl_FragColor = vec4(text(fragCoord) * vec3(1.,1.,1.), 1.0);
   //gl_FragColor = vec4(vec3(1.,1.,1.) * rain(fragCoord), 1.0);
 }
 `;
