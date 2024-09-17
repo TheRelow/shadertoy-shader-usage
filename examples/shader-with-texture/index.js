@@ -14,7 +14,7 @@ uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform float symbolSize;
 
-float rand(float seed) {
+float rand2(float seed) {
   return step(0.5, fract(sin(seed * 12.9898) * 43758.5453));
 }
 
@@ -23,29 +23,37 @@ float text(vec2 fragCoord) {
   vec2 block = fragCoord / symbolSize - uv; // px
   uv /= 2.0;
 
-  uv.x += rand(floor(iTime + block.x * 12.0 / block.y * 12.)) / 2.0;
+  uv.x += rand2(floor((iTime / 12.) + block.x * 126.0 / block.y * 12.)) / 2.0;
   uv.y = 1.0 / 2.0 - uv.y;
 
   return texture2D(iChannel0, uv).r;
 }
 
+// Функция генерации псевдослучайного числа
+float rand(float x) {
+  return fract(sin(x * 12.9898) * 43758.5453);
+}
+
 vec3 rain(vec2 fragCoord) {
   fragCoord.x -= mod(fragCoord.x, symbolSize);
+
   float offset = sin(fragCoord.x * 1234.0);
-  float speed = cos(fragCoord.x * 1234.0) * 0.15 + 0.3;
-  float y = fract(fragCoord.y / iResolution.y / 2. + iTime * speed + offset);
-  //float y = fract(fragCoord.y / iResolution.y + iTime * speed + offset);
+  float randomFactor = rand(fragCoord.x) * 0.9 + 0.1;
+  float randomScale = randomFactor * 3.5 + 1.;
+  float speed = (cos(fragCoord.x * 1234.0) * 0.15 + 0.3) / randomScale;
+  float y = fract(fragCoord.y / iResolution.y / randomScale + iTime * speed + offset);
+  float adjustedY = y > 0.08 ? 0.08 : y;
+  // float adjustedY = y > 0.8 ? 1.0 : (y > 0.1 ? 0.1 : y);
+  float intensity = smoothstep(325.0, 0.0, length(fragCoord.xy - iMouse.xy)) * 2.0 + 1.0;
 
-  float intensity = smoothstep(325.0, 0.0, length(fragCoord.xy - iMouse.xy)) * 9.0 + 1.0;
-
-  return vec3(0.0, 0.373, 1.0) / (y * 20.0) * intensity;
+  return vec3(0.0, 0.373, 1.0) / (adjustedY * 20.0) * intensity;
 }
 
 void main() {
   vec2 fragCoord = gl_FragCoord.xy;
   gl_FragColor = vec4(text(fragCoord) * rain(fragCoord), 1.0);
-  //gl_FragColor = vec4(text(fragCoord) * vec3(1.,1.,1.), 1.0);
-  //gl_FragColor = vec4(vec3(1.,1.,1.) * rain(fragCoord), 1.0);
+  // gl_FragColor = vec4(text(fragCoord) * vec3(1.), 1.0);
+  // gl_FragColor = vec4(vec3(1.) * rain(fragCoord), 1.0);
 }
 `;
 
@@ -176,21 +184,18 @@ function render(time) {
   requestAnimationFrame(render);
 }
 
-// Начинаем анимацию
 requestAnimationFrame(render);
 
-// Обновляем координаты мыши при движении
 canvas.addEventListener('mousemove', (event) => {
   const rect = canvas.getBoundingClientRect();
   mouseX = event.clientX - rect.left;
   mouseY = canvas.height - (event.clientY - rect.top);
 });
 
-// Когда мышь выходит за пределы канваса, задаем координаты за пределами экрана
-// canvas.addEventListener('mouseleave', () => {
-//   mouseX = -1000;
-//   mouseY = -1000;
-// });
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -1000;
+  mouseY = -1000;
+});
 
 // Когда мышь снова входит в канвас, восстанавливаем координаты мыши
 canvas.addEventListener('mouseenter', (event) => {
