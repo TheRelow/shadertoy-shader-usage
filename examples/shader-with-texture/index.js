@@ -11,7 +11,6 @@ uniform vec2 iResolution;
 uniform float iTime;
 uniform vec2 iMouse;
 uniform sampler2D iChannel0;
-uniform sampler2D iChannel1;
 uniform float symbolSize;
 
 float rand2(float seed) {
@@ -66,7 +65,6 @@ const resolutionUniformLocation = gl.getUniformLocation(program, 'iResolution');
 const timeUniformLocation = gl.getUniformLocation(program, 'iTime');
 const mouseUniformLocation = gl.getUniformLocation(program, 'iMouse');
 const texture0Location = gl.getUniformLocation(program, 'iChannel0');
-const texture1Location = gl.getUniformLocation(program, 'iChannel1');
 const symbolSizeLocation = gl.getUniformLocation(program, 'symbolSize'); // Новое uniform'ы для размера символов
 
 const positionBuffer = gl.createBuffer();
@@ -123,7 +121,6 @@ function loadTexture(url) {
 
 // const texture0 = loadTexture('letters.png');
 const texture0 = loadTexture('letters-texture.png');
-const texture1 = loadTexture('noise.png');
 
 let isPaused = false;
 let lastRenderTime = 0;
@@ -171,10 +168,6 @@ function render(time) {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture0);
   gl.uniform1i(texture0Location, 0);
-
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, texture1);
-  gl.uniform1i(texture1Location, 1);
 
   const primitiveType = gl.TRIANGLE_STRIP;
   const offsetPosition = 0;
